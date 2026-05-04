@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field, fields
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -21,6 +21,25 @@ class Object:
     move: float
     lastData: str
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Object":
+        return cls(
+            id=int(data["id"]),
+            name=str(data["name"]),
+            groupId=int(data["groupId"]),
+            IMEI=str(data["IMEI"]),
+            icon=str(data["icon"]),
+            rotateIcon=bool(data["rotateIcon"]),
+            iconHeight=int(data["iconHeight"]),
+            iconWidth=int(data["iconWidth"]),
+            status=int(data["status"]),
+            lat=float(data["lat"]),
+            lon=float(data["lon"]),
+            direction=float(data["direction"]),
+            move=float(data["move"]),
+            lastData=str(data["lastData"]),
+        )
+
 
 @dataclass(slots=True)
 class Sensor:
@@ -32,6 +51,18 @@ class Sensor:
     st: int
     haveChart: bool
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Sensor":
+        return cls(
+            sid=int(data["sid"]),
+            dt=str(data["dt"]),
+            ico=str(data["ico"]),
+            name=str(data["name"]),
+            val=str(data["val"]),
+            st=int(data["st"]),
+            haveChart=bool(data["haveChart"]),
+        )
+
 
 @dataclass(slots=True)
 class ObjectInfo:
@@ -40,34 +71,26 @@ class ObjectInfo:
     IMEI: str
     cid: int
     dt: str
-    properties: list
+    properties: list[dict[str, Any]]
     sensors: list[Sensor]
     result: str
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ObjectInfo":
+    def from_dict(cls, data: dict[str, Any]) -> "ObjectInfo":
         return cls(
-            oid=data["oid"],
-            Name=data["Name"],
-            IMEI=data["IMEI"],
-            cid=data["cid"],
-            dt=data["dt"],
-            properties=data["properties"],
-            sensors=[Sensor(**row) for row in data["sensors"]],
-            result=data["result"],
+            oid=str(data["oid"]),
+            Name=str(data["Name"]),
+            IMEI=str(data["IMEI"]),
+            cid=int(data["cid"]),
+            dt=str(data["dt"]),
+            properties=_dict_list(data.get("properties", [])),
+            sensors=_sensor_list(data.get("sensors", [])),
+            result=str(data.get("result", "")),
         )
 
 
 @dataclass(slots=True)
-class ObjectFull:
-    oid: str
-    Name: str
-    IMEI: str
-    cid: int
-    dt: str
-    properties: list
-    sensors: list[Sensor]
-    result: str
+class ObjectFull(ObjectInfo):
     parent_id: int
     name: str
     address: str
@@ -83,44 +106,24 @@ class ObjectFull:
     block_reason: int
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ObjectFull":
+    def from_dict(cls, data: dict[str, Any]) -> "ObjectFull":
+        info = ObjectInfo.from_dict(data)
+        base_values = {item.name: getattr(info, item.name) for item in fields(info)}
         return cls(
-            oid=data["oid"],
-            Name=data["Name"],
-            IMEI=data["IMEI"],
-            cid=data["cid"],
-            dt=data["dt"],
-            properties=data["properties"],
-            sensors=[Sensor(**row) for row in data["sensors"]],
-            result=data["result"],
-            parent_id=data["parent_id"],
-            name=data["name"],
-            address=data["address"],
-            obj_icon=data["obj_icon"],
-            obj_icon_height=data["obj_icon_height"],
-            obj_icon_width=data["obj_icon_width"],
-            obj_icon_rotate=data["obj_icon_rotate"],
-            status=data["status"],
-            lat=data["lat"],
-            lon=data["lon"],
-            direction=data["direction"],
-            move=data["move"],
-            block_reason=data["block_reason"],
-        )
-
-
-@dataclass(slots=True)
-class TrackInfo:
-    oid: int
-    coords: list[Coord]
-    result: str
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "TrackInfo":
-        return cls(
-            oid=data["oid"],
-            coords=[Coord(**row) for row in data["coords"]],
-            result=data["result"],
+            **base_values,
+            parent_id=int(data["parent_id"]),
+            name=str(data["name"]),
+            address=str(data["address"]),
+            obj_icon=str(data["obj_icon"]),
+            obj_icon_height=int(data["obj_icon_height"]),
+            obj_icon_width=int(data["obj_icon_width"]),
+            obj_icon_rotate=bool(data["obj_icon_rotate"]),
+            status=int(data["status"]),
+            lat=float(data["lat"]),
+            lon=float(data["lon"]),
+            direction=float(data["direction"]),
+            move=float(data["move"]),
+            block_reason=int(data["block_reason"]),
         )
 
 
@@ -134,6 +137,30 @@ class Coord:
     st: float
     speed: float
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Coord":
+        return cls(
+            tm=str(data["tm"]),
+            lat=float(data["lat"]),
+            lon=float(data["lon"]),
+            dir=float(data["dir"]),
+            dst=float(data["dst"]),
+            st=float(data["st"]),
+            speed=float(data["speed"]),
+        )
+
+
+@dataclass(slots=True)
+class TrackInfo:
+    oid: int
+    coords: list[Coord]
+    result: str
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TrackInfo":
+        coords = [Coord.from_dict(row) for row in data.get("coords", [])]
+        return cls(oid=int(data["oid"]), coords=coords, result=str(data["result"]))
+
 
 @dataclass(slots=True)
 class TreeNode:
@@ -142,58 +169,58 @@ class TreeNode:
     real_id: int
     name: str
     leaf: bool
-
     status: int
     lat: float
     lon: float
-
-    children: Optional[list["TreeNode"]] = None
+    children: list["TreeNode"] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TreeNode":
-        ch = data["children"]
-
+    def from_dict(cls, data: dict[str, Any]) -> "TreeNode":
+        children = [cls.from_dict(row) for row in data.get("children", [])]
         return cls(
-            id=data["id"],
-            parent_id=data["parent_id"],
-            real_id=data["real_id"],
-            name=data["name"],
-            leaf=data["leaf"],
-            status=data["status"],
-            lat=data.get("lat", 0.0),
-            lon=data.get("lon", 0.0),
-            children=[cls.from_dict(c) for c in ch] if ch else None,
+            id=int(data["id"]),
+            parent_id=int(data["parent_id"]),
+            real_id=int(data["real_id"]),
+            name=str(data["name"]),
+            leaf=bool(data["leaf"]),
+            status=int(data["status"]),
+            lat=float(data.get("lat", 0.0)),
+            lon=float(data.get("lon", 0.0)),
+            children=children,
         )
 
     @classmethod
-    def build_tree(cls, data: dict) -> list["TreeNode"]:
-        return [cls.from_dict(n) for n in data["children"]]
+    def build_tree(cls, data: dict[str, Any]) -> list["TreeNode"]:
+        return [cls.from_dict(node) for node in data.get("children", [])]
 
     @classmethod
-    def build_tree_with_index(cls, data: dict):
+    def build_tree_with_index(
+        cls,
+        data: dict[str, Any],
+    ) -> tuple[list["TreeNode"], dict[int, "TreeNode"]]:
         index: dict[int, TreeNode] = {}
-
-        def build(node: dict) -> TreeNode:
-            ch = node["children"]
-
-            obj = cls(
-                id=node["id"],
-                parent_id=node["parent_id"],
-                real_id=node["real_id"],
-                name=node["name"],
-                leaf=node["leaf"],
-                status=node["status"],
-                lat=node.get("lat", 0.0),
-                lon=node.get("lon", 0.0),
-                children=None,
-            )
-
-            index[obj.real_id] = obj
-
-            if ch:
-                obj.children = [build(c) for c in ch]
-
-            return obj
-
-        roots = [build(n) for n in data["children"]]
+        roots = [cls._build_with_index(node, index) for node in data.get("children", [])]
         return roots, index
+
+    @classmethod
+    def _build_with_index(
+        cls,
+        data: dict[str, Any],
+        index: dict[int, "TreeNode"],
+    ) -> "TreeNode":
+        node = cls.from_dict({**data, "children": []})
+        index[node.real_id] = node
+        node.children = [cls._build_with_index(row, index) for row in data.get("children", [])]
+        return node
+
+
+def _sensor_list(value: Any) -> list[Sensor]:
+    if not isinstance(value, list):
+        return []
+    return [Sensor.from_dict(row) for row in value if isinstance(row, dict)]
+
+
+def _dict_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [row for row in value if isinstance(row, dict)]

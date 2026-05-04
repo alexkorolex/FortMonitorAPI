@@ -1,9 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
 [project]
-name = "fortmonitorapi"
+name = "fort-monitor-api"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "aiohttp>=3.13.5",
+description = "Async Python client for the FortMonitor integration API"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["fortmonitor", "fort-monitor", "monitoring", "api", "aiohttp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
 ]
+dependencies = [
+    "aiohttp>=3.9",
+]
+
+[project.urls]
+Documentation = "https://fort.psmgroup.ru/swagger/index.html"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fort_monitor"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "fort_monitor",
+    "tests",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+]
+exclude = [".gitignore"]

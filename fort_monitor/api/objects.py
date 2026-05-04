@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import Any, Optional
 
-import aiohttp
-
+from fort_monitor.api.http import FortMonitorHttpClient
+from fort_monitor.exceptions import FortMonitorResponseError
 from fort_monitor.schemas.objects import (
     Object,
     ObjectFull,
@@ -14,10 +16,10 @@ from fort_monitor.schemas.objects import (
 
 
 class FortMonitorObjects:
-    def __init__(self, session: aiohttp.ClientSession):
-        self.session = session
+    def __init__(self, client: FortMonitorHttpClient):
+        self._client = client
         self.logger = logging.getLogger("fort_monitor_objects")
-        self.union_format_time = "%Y/%m/%d %H:%M:%S"
+        self._date_time_format = "%Y-%m-%d %H:%M:%S"
 
     async def get_tree(self, all: bool = False) -> TreeNode:
         """Метод возвращает сгруппированный в дерево список доступных для пользователя объектов мониторинга.
@@ -28,17 +30,22 @@ class FortMonitorObjects:
         Returns:
             TreeNode: Дерево доступных для пользователя объектов мониторинга
         """
-        self.logger.info("Get tree info objects")
-        async with self.session.get(
+        roots = await self.get_tree_roots(all=all)
+        if not roots:
+            raise FortMonitorResponseError("FortMonitor returned an empty object tree")
+        return roots[0]
+
+    async def get_tree_roots(self, all: bool = False) -> list[TreeNode]:
+        self.logger.info("Get object tree", extra={"all_companies": all})
+        raw = await self._client.request_json_object(
+            "GET",
             "gettree/",
             params={"all": str(all).lower()},
-        ) as response:
-            self.logger.info("Status response: %r", response.status)
-            response.raise_for_status()
-            raw = await response.json()
-            data = raw["children"][0]
-            tree = TreeNode.from_dict(data)
-            return tree
+        )
+        children = raw.get("children", [])
+        if not isinstance(children, list):
+            raise FortMonitorResponseError("Invalid gettree response", payload=raw)
+        return [TreeNode.from_dict(row) for row in children]
 
     async def get_objects_list(self, company_id: int = 0) -> list[Object]:
         """Запрос списка доступных объектов
@@ -49,18 +56,15 @@ class FortMonitorObjects:
         Returns:
             list[Object]: Список объектов компании
         """
-        self.logger.info("Get objects list")
-        async with self.session.get(
+        self.logger.info("Get objects list", extra={"company_id": company_id})
+        json_data = await self._client.request_json_object(
+            "GET",
             "getobjectslist/",
-            data={"companyId": company_id},
-        ) as response:
-            self.logger.info("Status response: %r", response.status)
-            response.raise_for_status()
-
-            json_data = await response.json()
-            objects: list[dict[str, Any]] = json_data.get("objects", [])
-
-            return [Object(**row) for row in objects]
+            params={"companyId": company_id},
+        )
+        self._ensure_success_result(json_data)
+        objects: list[dict[str, Any]] = json_data.get("objects", [])
+        return [Object.from_dict(row) for row in objects]
 
     async def track(
         self, oid: int, start_time: datetime, finish_time: datetime
@@ -75,20 +79,18 @@ class FortMonitorObjects:
         Returns:
             TrackInfo: Информация о треке движения объекта
         """
-        self.logger.info("Get full object info")
-        async with self.session.get(
+        self.logger.info("Get object track", extra={"oid": oid})
+        data = await self._client.request_json_object(
+            "GET",
             "track/",
             params={
                 "oid": oid,
-                "from": start_time.strftime(format=self.union_format_time),
-                "to": finish_time.strftime(format=self.union_format_time),
+                "from": self._format_datetime(start_time),
+                "to": self._format_datetime(finish_time),
             },
-        ) as response:
-            self.logger.info("Status response: %r", response.status)
-            response.raise_for_status()
-            data = await response.json()
-            track = TrackInfo.from_dict(data=data)
-            return track
+        )
+        self._ensure_success_result(data)
+        return TrackInfo.from_dict(data=data)
 
     async def object_info(self, oid: int, dt: Optional[datetime] = None) -> ObjectInfo:
         """Метод возвращает информацию о состоянии объекта и сконфигурированных для него датчиков
@@ -100,20 +102,19 @@ class FortMonitorObjects:
         Returns:
             ObjectInfo: Информация о состоянии объекта
         """
-        self.logger.info("Get object info")
+        self.logger.info("Get object info", extra={"oid": oid})
         params: dict[str, str | int] = {
             "oid": oid,
         }
         if dt:
-            params.update({"dt": dt.strftime(format=self.union_format_time)})
-        async with self.session.get(
+            params.update({"dt": self._format_datetime(dt)})
+        data = await self._client.request_json_object(
+            "GET",
             "objectinfo/",
             params=params,
-        ) as response:
-            self.logger.info("Status response: %r", response.status)
-            response.raise_for_status()
-            data = await response.json()
-            return ObjectInfo.from_dict(data)
+        )
+        self._ensure_success_result(data)
+        return ObjectInfo.from_dict(data)
 
     async def full_object_info(self, oid: int) -> ObjectFull:
         """Метод возвращает детальные данные объекта включая датчики, местоположение и свойства объекта.
@@ -124,12 +125,22 @@ class FortMonitorObjects:
         Returns:
             ObjectFull:  Детальные данные объекта
         """
-        self.logger.info("Get full object info")
-        async with self.session.get(
+        self.logger.info("Get full object info", extra={"oid": oid})
+        data = await self._client.request_json_object(
+            "GET",
             "fullobjinfo/",
             params={"oid": oid},
-        ) as response:
-            self.logger.info("Status response: %r", response.status)
-            response.raise_for_status()
-            data = await response.json()
-            return ObjectFull.from_dict(data)
+        )
+        self._ensure_success_result(data)
+        return ObjectFull.from_dict(data)
+
+    def _format_datetime(self, value: datetime) -> str:
+        return value.strftime(self._date_time_format)
+
+    def _ensure_success_result(self, data: dict[str, Any]) -> None:
+        result = data.get("result")
+        if not isinstance(result, str) or result.lower() == "ok":
+            return
+
+        message = "FortMonitor API returned an unsuccessful result"
+        raise FortMonitorResponseError(message, payload=data)
