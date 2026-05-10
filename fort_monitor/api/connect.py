@@ -19,7 +19,7 @@ class FortMonitorConnect:
         self,
         login: str,
         password: str,
-        lang: str = "ru",
+        lang: str = "ru-ru",
         timezone: int = 0,
     ) -> tuple[dict[str, str], dict[str, Any]]:
         """Метод используется для открытия сессии взаимодействия с сервером. Любая сессия взаимодействия может проводиться только поcле авторизации пользователя.
@@ -31,7 +31,7 @@ class FortMonitorConnect:
         Args:
             login (str):
             password (str):
-            lang (str, optional): Defaults to "ru".
+            lang (str, optional): Defaults to "ru-ru".
             timezone (int, optional): Defaults to 0.
 
         Returns:

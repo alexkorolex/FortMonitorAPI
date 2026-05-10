@@ -8,7 +8,7 @@ class FortMonitorConfig:
     """Runtime settings for FortMonitor API calls."""
 
     base_url: str = "https://fort.psmgroup.ru/api/integration/v1/"
-    lang: str = "ru"
+    lang: str = "ru-ru"
     timezone: int = 0
     timeout: float = 30.0
 
