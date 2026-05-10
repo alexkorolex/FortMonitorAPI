@@ -205,6 +205,7 @@ class FortMonitorHttpClient:
             raise FortMonitorResponseError(message, payload=text) from exc
 
     def _raise_for_auth_body(self, body: str) -> None:
+        body = body.replace('"', "").lower()
         if not body or body.lower() == "ok":
             return
 
