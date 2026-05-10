@@ -89,7 +89,7 @@ from fort_monitor import FortMonitor, FortMonitorConfig
 
 config = FortMonitorConfig(
     base_url="https://your-fortmonitor-host/api/integration/v1/",
-    lang="ru",
+    lang="ru-ru",
     timezone=3,
     timeout=20.0,
 )
